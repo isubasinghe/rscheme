@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 nom = "7.1.0"
 memmap2 = "0.5.2"
+cranelift = "0.81.1"
