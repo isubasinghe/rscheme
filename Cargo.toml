@@ -7,6 +7,8 @@ edition = "2021"
 
 [dependencies]
 nom = "7.1.0"
+nom_locate = "4.0.0"
+chumsky = "0.8.0"
 memmap2 = "0.5.2"
 cranelift = "0.81.1"
 cranelift-module = "0.81.1"
