@@ -1,7 +1,8 @@
+#[derive(Clone, Debug)]
 pub enum LispVal {
     Atom(String), 
     List(Vec<LispVal>),
-    Number(String),
+    Int(i64),
     String(String),
     Nil, 
     Bool(bool),

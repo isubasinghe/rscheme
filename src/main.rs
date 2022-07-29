@@ -1,5 +1,5 @@
 mod mem;
 mod parser;
 fn main() {
-    println!("Hello, world!");
+    parser::parse_file("example.lp");
 }
