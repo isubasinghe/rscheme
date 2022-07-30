@@ -1,14 +1,13 @@
 // use ariadne::{Color, Fmt, Label, Report, ReportKind, Source};
 
-use super::ast::LispVal;
+use super::ast::*;
 
+use chumsky::Stream;
 use chumsky::prelude::*;
 use core::fmt;
 use std::fs::*;
 use std::io;
 //
-
-pub type Span = std::ops::Range<usize>;
 
 pub fn merge_span(s1: Span, s2: Span) -> Span {
     let (low1, high1) = (s1.start(), s1.end());
@@ -33,7 +32,7 @@ impl From<io::Error> for ParseError {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq)]
 enum Token {
     Neg,
     Bool(bool), 
@@ -101,13 +100,42 @@ fn lexer() -> impl Parser<char, Vec<(Token, Span)>, Error=Simple<char>> {
         .repeated()
 }
 
+fn parser() -> impl Parser<Token, Spanned<LispVal>, Error = Simple<Token>> + Clone {
+    recursive(|expr| {
+        let ident = select! { Token::Ident(ident) => ident.clone() }.labelled("identifier");
+
+        let lvals = expr.clone().repeated();
+        let func_name_with_params = just(Token::LParen)
+                        .ignore_then(ident)
+                        .then(lvals)
+                        .then_ignore(just(Token::RParen))
+                        .map(|zxc| todo!());
+        
+        let func = just(Token::LParen)
+            .ignore_then(ident)
+            .then_ignore(just(Token::Define))
+            .then(expr.repeated())
+            .then_ignore(just(Token::RParen))
+            .map(|asd| todo!());
+
+        func
+    })
+}
+
 
 
 pub fn parse_file(filename: &str) -> Result<(), ParseError> {
     let src = read_to_string(filename)?;
+
+    let len = src.chars().count();
     let (tokens_with_spans, errs) = lexer().parse_recovery(src);
-    dbg!(&tokens_with_spans);
-    dbg!(errs);
+    if tokens_with_spans == None {
+        return Err(ParseError{});
+    }
+
+    let tokens_with_spans = tokens_with_spans.unwrap();
+    
+    let (ast, parse_errs) = parser().parse_recovery(Stream::from_iter(len..len+1, tokens_with_spans.into_iter()));
     todo!()
 }
 

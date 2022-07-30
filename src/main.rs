@@ -1,5 +1,5 @@
 mod mem;
 mod parser;
 fn main() {
-    parser::parse_file("example.lp");
+    parser::parse_file("./testdata/example.lp");
 }
