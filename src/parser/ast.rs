@@ -16,11 +16,9 @@ pub enum LispVal {
     Nil, 
     Bool(bool),
     Function{
-        def: Vec<Spanned<LispVal>>
+        name: String,
+        params: String
     },
-    PlaceHolder {
-        lvals: Vec<Spanned<LispVal>>
-    }
 }
 
 
