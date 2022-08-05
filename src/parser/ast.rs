@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-type AVec<T> = Arc<Vec<Arc<T>>>;
 
 pub type Span = std::ops::Range<usize>;
 
@@ -18,13 +17,17 @@ pub enum LispValX {
     List(Arc<Vec<Spanned<LispVal>>>),
     Int(Arc<String>),
     String(Arc<String>),
-    Nil, 
     Bool(bool),
     Function{
         name: Arc<String>,
-        params: Arc<String>
+        params: Vec<Arc<String>>,
+        body: Arc<Vec<Spanned<LispVal>>>
     },
 }
 
+pub type LispModule = Arc<LispModuleX>;
 
-
+#[derive(Clone, Debug)]
+pub struct LispModuleX {
+    pub functions: Arc<Vec<Spanned<LispVal>>> 
+}

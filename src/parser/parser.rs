@@ -34,6 +34,9 @@ impl From<io::Error> for ParseError {
 #[derive(Debug, Hash, Clone, PartialEq, Eq)]
 enum Token {
     Neg,
+    Add,
+    Mult,
+    Div,
     Bool(bool),
     Num(Arc<String>),
     Str(Arc<String>),
@@ -51,6 +54,9 @@ enum Token {
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Token::Add => write!(f, "+"),
+            Token::Mult => write!(f, "*"),
+            Token::Div => write!(f, "/"),
             Token::Neg => write!(f, "-"),
             Token::Bool(b) => {
                 let s = match b {
@@ -76,6 +82,9 @@ impl fmt::Display for Token {
 
 fn lexer() -> impl Parser<char, Vec<(Token, Span)>, Error = Simple<char>> {
     let neg = just('-').map(|_| Token::Neg);
+    let add = just('+').map(|_| Token::Add);
+    let mult = just('*').map(|_| Token::Mult);
+    let div = just('/').map(|_| Token::Div);
 
     let lparen = just('(').map(|_| Token::LParen);
     let rparen = just(')').map(|_| Token::RParen);
@@ -105,6 +114,9 @@ fn lexer() -> impl Parser<char, Vec<(Token, Span)>, Error = Simple<char>> {
     let token = posnum
         .or(str_)
         .or(neg)
+        .or(add)
+        .or(mult)
+        .or(div)
         .or(lparen)
         .or(rparen)
         .or(define)
@@ -148,8 +160,27 @@ fn parser() -> impl Parser<Token, Spanned<LispVal>, Error = Simple<Token>> + Clo
 
         let atom = select! { Token::Ident(ident) => ident.clone() }.labelled("atom");
         let atom = atom.map_with_span(|s, span| Spanned {
-            x: Arc::new(LispValX::Atom(s)), 
-            span, 
+            x: Arc::new(LispValX::Atom(s)),
+            span,
+        });
+
+        let arith_ops = (just(Token::Neg)
+            .or(just(Token::Add))
+            .or(just(Token::Div))
+            .or(just(Token::Mult)))
+        .map_with_span(|tok, span: Span| Spanned {
+            x: Arc::new(LispValX::Atom(Arc::new(tok.to_string()))),
+            span,
+        })
+        .then(expr.clone().repeated())
+        .map_with_span(|(op, mut args), span: Span| Spanned {
+            x: Arc::new(LispValX::List(Arc::new({
+                let mut v = Vec::new();
+                v.push(op);
+                v.append(&mut args);
+                v
+            }))),
+            span,
         });
 
         let lvals = just(Token::LParen)
@@ -160,7 +191,7 @@ fn parser() -> impl Parser<Token, Spanned<LispVal>, Error = Simple<Token>> + Clo
                 span,
             });
 
-
+        let body = lvals.clone().repeated();
 
         let func_name_with_params = just(Token::LParen)
             .ignore_then(just(Token::Define))
@@ -168,10 +199,15 @@ fn parser() -> impl Parser<Token, Spanned<LispVal>, Error = Simple<Token>> + Clo
             .ignore_then(ident)
             .then(params)
             .then_ignore(just(Token::RParen))
+            .then(body)
             .then_ignore(just(Token::RParen))
-            .map(|(ident, params)| todo!());
+            .map_with_span(|((ident, params), body), span: Span| Spanned{
+                x: Arc::new(LispValX::Function{name: ident, params, body: Arc::new(body)}), 
+                span
+            });
 
         let out = func_name_with_params
+            .or(arith_ops)
             .or(num)
             .or(boolean)
             .or(string)
@@ -181,6 +217,11 @@ fn parser() -> impl Parser<Token, Spanned<LispVal>, Error = Simple<Token>> + Clo
     })
 }
 
+fn module_parser() -> impl Parser<Token, LispModule, Error=Simple<Token>> + Clone {
+    parser().repeated().then_ignore(end()).map(|fns| Arc::new(LispModuleX {functions: Arc::new(fns)}))
+
+}
+
 pub fn parse_file(filename: &str) -> Result<(), ParseError> {
     let src = read_to_string(filename)?;
 
@@ -188,10 +229,9 @@ pub fn parse_file(filename: &str) -> Result<(), ParseError> {
     let (tokens, errs) = lexer().parse_recovery(src.as_str());
 
     let parse_errs = if let Some(tokens) = tokens {
-        dbg!(&tokens);
         let len = src.chars().count();
         let (ast, parse_errs) =
-            parser().parse_recovery(Stream::from_iter(len..len + 1, tokens.into_iter()));
+            module_parser().parse_recovery(Stream::from_iter(len..len + 1, tokens.into_iter()));
 
         println!("{:?}", ast);
         parse_errs
