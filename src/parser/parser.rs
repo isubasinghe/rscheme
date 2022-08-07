@@ -1,5 +1,5 @@
 use super::ast::*;
-use ariadne::{Color, ColorGenerator, Fmt, Label, Report, ReportKind, Source};
+use ariadne::{Color, Fmt, Label, Report, ReportKind, Source};
 
 use crate::common::*;
 use chumsky::prelude::*;
@@ -42,6 +42,11 @@ enum Token {
     Ge,
     Geq,
     Eq,
+    LBrack, 
+    RBrack,
+    // special: for requires/ensures
+    Comma,
+    Colon, 
 }
 
 impl fmt::Display for Token {
@@ -69,6 +74,10 @@ impl fmt::Display for Token {
             Token::Ge => write!(f, ">"),
             Token::Geq => write!(f, ">="),
             Token::Eq => write!(f, "=="),
+            Token::LBrack => write!(f, "["), 
+            Token::RBrack => write!(f, "]"),
+            Token::Comma => write!(f, ","),
+            Token::Colon => write!(f, ":"),
         }
     }
 }
@@ -81,6 +90,12 @@ fn lexer() -> impl Parser<char, Vec<(Token, Span)>, Error = Simple<char>> {
 
     let lparen = just('(').map(|_| Token::LParen);
     let rparen = just(')').map(|_| Token::RParen);
+
+    let lbrack = just('[').map(|_| Token::LBrack);
+    let comma = just(',').map(|_| Token::Comma);
+    let rbrack = just(']').map(|_| Token::RBrack);
+    let colon = just(':').map(|_| Token::Colon);
+
     let le = just('<').map(|_| Token::Le);
     let leq = just("<=").map(|_| Token::Leq);
     let ge = just('>').map(|_| Token::Ge);
@@ -120,7 +135,11 @@ fn lexer() -> impl Parser<char, Vec<(Token, Span)>, Error = Simple<char>> {
         .or(geq)
         .or(eq)
         .or(ltrue)
-        .or(lfalse);
+        .or(lfalse)
+        .or(lbrack)
+        .or(rbrack)
+        .or(comma)
+        .or(colon);
 
     token
         .map_with_span(|tok, span| (tok, span))
