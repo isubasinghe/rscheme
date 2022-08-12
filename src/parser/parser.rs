@@ -299,17 +299,18 @@ fn module_parser(
     })
 }
 
-pub fn parse_file(filename: &str) -> Result<(), ParseError> {
+pub fn parse_file(filename: &str) -> Result<LispModule, ParseError> {
     let src = read_to_string(filename)?;
 
     let (tokens, errs) = lexer().parse_recovery(src.as_str());
-
+    
+    let mut parsed_ast = None;
     let parse_errs = if let Some(tokens) = tokens {
         let len = src.chars().count();
         let (ast, parse_errs) = module_parser(Arc::new(filename.to_string()))
             .parse_recovery(Stream::from_iter(len..len + 1, tokens.into_iter()));
+        parsed_ast = ast;
 
-        println!("{:#?}", ast);
         parse_errs
     } else {
         Vec::new()
@@ -388,5 +389,8 @@ pub fn parse_file(filename: &str) -> Result<(), ParseError> {
                 .unwrap();
         });
 
-    todo!();
+    match parsed_ast {
+        Some(ast) => Ok(ast), 
+        None => Err(ParseError{})
+    }
 }
