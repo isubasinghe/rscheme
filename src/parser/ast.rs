@@ -14,6 +14,8 @@ pub enum LispValX {
     Function{
         name: Arc<String>,
         params: Vec<Arc<String>>,
+        requires: Option<Arc<Vec<Spanned<LispVal>>>>,
+        ensures: Option<Arc<Spanned<LispVal>>>,
         body: Arc<Vec<Spanned<LispVal>>>
     },
 }

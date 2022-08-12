@@ -42,11 +42,13 @@ enum Token {
     Ge,
     Geq,
     Eq,
-    LBrack, 
+    LBrack,
     RBrack,
     // special: for requires/ensures
     Comma,
-    Colon, 
+    Colon,
+    Requires,
+    Ensures,
 }
 
 impl fmt::Display for Token {
@@ -74,10 +76,12 @@ impl fmt::Display for Token {
             Token::Ge => write!(f, ">"),
             Token::Geq => write!(f, ">="),
             Token::Eq => write!(f, "=="),
-            Token::LBrack => write!(f, "["), 
+            Token::LBrack => write!(f, "["),
             Token::RBrack => write!(f, "]"),
             Token::Comma => write!(f, ","),
             Token::Colon => write!(f, ":"),
+            Token::Requires => write!(f, "requires"),
+            Token::Ensures => write!(f, "ensures"),
         }
     }
 }
@@ -108,6 +112,9 @@ fn lexer() -> impl Parser<char, Vec<(Token, Span)>, Error = Simple<char>> {
     let define = just("define").map(|_| Token::Define);
     let ident = text::ident().map(|s| Token::Ident(Arc::new(s)));
 
+    let requires = just("requires").map(|_| Token::Requires);
+    let ensures = just("ensures").map(|_| Token::Ensures);
+
     let posnum = text::int(10)
         .chain::<char, _, _>(just('.').chain(text::digits(10)).or_not().flatten())
         .collect::<String>()
@@ -128,11 +135,13 @@ fn lexer() -> impl Parser<char, Vec<(Token, Span)>, Error = Simple<char>> {
         .or(lparen)
         .or(rparen)
         .or(define)
+        .or(requires)
+        .or(ensures)
         .or(ident)
-        .or(le)
         .or(leq)
-        .or(ge)
+        .or(le)
         .or(geq)
+        .or(ge)
         .or(eq)
         .or(ltrue)
         .or(lfalse)
@@ -140,6 +149,7 @@ fn lexer() -> impl Parser<char, Vec<(Token, Span)>, Error = Simple<char>> {
         .or(rbrack)
         .or(comma)
         .or(colon);
+
 
     token
         .map_with_span(|tok, span| (tok, span))
@@ -219,7 +229,7 @@ fn parser(
         let source = origin_src.clone();
 
         let lvals = just(Token::LParen)
-            .ignore_then(expr.repeated())
+            .ignore_then(expr.clone().repeated())
             .then_ignore(just(Token::RParen))
             .map_with_span(move |lvals, span| Spanned {
                 source: source.clone(),
@@ -229,24 +239,44 @@ fn parser(
 
         let body = lvals.clone().repeated();
 
+        let rexpr = expr.clone();
+        let requires = just(Token::Colon)
+            .ignore_then(just(Token::Requires))
+            .ignore_then(just(Token::LBrack))
+            .ignore_then(rexpr.separated_by(just(Token::Comma)))
+            .then_ignore(just(Token::RBrack)).or_not();
+
+        let eexpr = expr.clone();
+        let ensures = just(Token::Colon)
+            .ignore_then(just(Token::Ensures))
+            .ignore_then(just(Token::LBrack))
+            .ignore_then(eexpr)
+            .then_ignore(just(Token::RBrack)).or_not();
+
         let source = origin_src.clone();
         let func_name_with_params = just(Token::LParen)
             .ignore_then(just(Token::Define))
             .ignore_then(just(Token::LParen))
             .ignore_then(ident)
             .then(params)
+            .then(requires)
+            .then(ensures)
             .then_ignore(just(Token::RParen))
             .then(body)
             .then_ignore(just(Token::RParen))
-            .map_with_span(move |((ident, params), body), span: Span| Spanned {
-                source: source.clone(),
-                x: Arc::new(LispValX::Function {
-                    name: ident,
-                    params,
-                    body: Arc::new(body),
-                }),
-                span,
-            });
+            .map_with_span(
+                move |((((ident, params), req), ens), body), span: Span| Spanned {
+                    source: source.clone(),
+                    x: Arc::new(LispValX::Function {
+                        name: ident,
+                        params,
+                        requires: req.map(Arc::new),
+                        ensures: ens.map(Arc::new),
+                        body: Arc::new(body),
+                    }),
+                    span,
+                },
+            );
 
         let out = func_name_with_params
             .or(arith_ops)
@@ -298,7 +328,7 @@ pub fn parse_file(filename: &str) -> Result<(), ParseError> {
                         delimiter.fg(Color::Yellow)
                     ))
                     .with_label(
-                        Label::new((filename,span.clone()))
+                        Label::new((filename, span.clone()))
                             .with_message(format!(
                                 "Unclosed delimiter {}",
                                 delimiter.fg(Color::Yellow)
@@ -306,7 +336,7 @@ pub fn parse_file(filename: &str) -> Result<(), ParseError> {
                             .with_color(Color::Yellow),
                     )
                     .with_label(
-                        Label::new((filename,e.span()))
+                        Label::new((filename, e.span()))
                             .with_message(format!(
                                 "Must be closed before this {}",
                                 e.found()
@@ -352,7 +382,8 @@ pub fn parse_file(filename: &str) -> Result<(), ParseError> {
                 ),
             };
 
-            report.finish()
+            report
+                .finish()
                 .print((filename, Source::from(&src)))
                 .unwrap();
         });
