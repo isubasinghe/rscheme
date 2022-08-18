@@ -9,5 +9,6 @@ mod interpreter;
 use parser::parse_file;
 
 fn main() {
-    parse_file("./testdata/example.lp");
+    println!("Hello");
+    let _ast = parse_file("./testdata/example.lp").unwrap();
 }

@@ -2,7 +2,7 @@ pub type Span = std::ops::Range<usize>;
 use std::sync::Arc;
 use ariadne;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct Spanned<T> {
     pub source: Arc<String>,
     pub x: T, 

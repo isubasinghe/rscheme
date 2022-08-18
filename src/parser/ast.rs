@@ -4,7 +4,7 @@ use crate::common::*;
 
 pub type LispVal = Arc<LispValX>;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, Eq, PartialEq)]
 pub enum LispValX {
     Atom(Arc<String>), 
     List(Arc<Vec<Spanned<LispVal>>>),
